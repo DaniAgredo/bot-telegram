@@ -1,17 +1,13 @@
 import logging
+import re
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
-from dotenv import load_dotenv
-import os
 
-# Cargar las variables de entorno
-load_dotenv()
-
-# Obtener el token de Telegram desde el archivo .env
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-
-# Habilitar el registro para ver los errores y el funcionamiento del bot
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+# Configurar logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
 # Comando /start
@@ -43,38 +39,38 @@ async def payment(update: Update, context: CallbackContext) -> None:
         "Aquí tienes los métodos de pago disponibles:\n"
         "1. PayPal: [Enlace de PayPal]\n"
         "2. Skrill: [Enlace de Skrill]\n"
-        "3. Mercado Libre: [Enlace de Mercado Libre]"
+        "3. Mercado Pago: [Enlace de Mercado Pago]"
     )
 
-# Comando para manejar texto general
+# Mensaje general
 async def handle_message(update: Update, context: CallbackContext) -> None:
     user_message = update.message.text.lower()
-    
-    # Si el mensaje es "hola" o "hello", se activará la respuesta de saludo
+
     if "hola" in user_message or "hello" in user_message:
         await greet(update, context)
     else:
         await update.message.reply_text("Lo siento, no entiendo ese comando. ¿Cómo puedo ayudarte?")
 
-# Función para iniciar el bot
+# Función principal para ejecutar el bot
 def main() -> None:
-    # Crear la aplicación de Telegram
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    import os
+    from dotenv import load_dotenv
 
-    # Comandos del bot
+    load_dotenv()
+    TOKEN = os.getenv("TELEGRAM_TOKEN")
+
+    application = Application.builder().token(TOKEN).build()
+
+    # Comandos
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
 
-    # Responder a los mensajes que contengan "hola" o "hello"
+    # Respuestas específicas
     application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^(hola|hello)$'), greet))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^hablar conmigo$', flags=re.IGNORECASE), contact_me))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^opciones de pago$', flags=re.IGNORECASE), payment))
 
-    # Responder a la opción de contactar directamente
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^hablar conmigo$', flags=filters.Regex.IGNORECASE), contact_me))
-
-    # Responder a la opción de pagos
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^opciones de pago$', flags=filters.Regex.IGNORECASE), payment))
-
-    # Manejar mensajes generales
+    # Mensajes generales
     application.add_handler(MessageHandler(filters.TEXT & ~filters.Regex('^(hola|hello|opciones de pago|hablar conmigo)$'), handle_message))
 
     # Iniciar el bot
