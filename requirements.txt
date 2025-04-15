@@ -3,3 +3,5 @@ paypalrestsdk==1.13.3
 python-dotenv
 Flask
 requests
+uvicorn
+fastapi
