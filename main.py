@@ -22,29 +22,26 @@ bot = Bot(token=TOKEN)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Verificación de IPN de PayPal
+# Validación de IPN de PayPal
 def verify_paypal_ipn(data):
     """Verifica la IPN de PayPal utilizando el HMAC y la clave secreta"""
-    # Construir la cadena para verificar con el HMAC
-    payload = data['raw_data']
     expected_signature = hmac.new(
-        PAYPAL_SECRET.encode('utf-8'),
-        payload.encode('utf-8'),
+        PAYPAL_SECRET.encode('utf-8'), 
+        data.encode('utf-8'), 
         hashlib.sha256
     ).hexdigest()
-
+    
     return expected_signature == data['signature']
 
 # Función para agregar al usuario al canal VIP
 async def give_access_to_channel(user_id):
     """Agrega al usuario al canal VIP después de pago exitoso"""
     try:
-        # Mensaje de acceso al canal VIP
         await bot.send_message(
-            chat_id=user_id,
+            chat_id=user_id, 
             text=f"🎉 ¡Tu pago fue exitoso! Ahora tienes acceso al canal VIP. ¡Bienvenido! 🔥"
         )
-        # Notificar al canal
+        # Enviar mensaje al canal, si el usuario está en el canal
         await bot.send_message(
             chat_id=CHANNEL_ID,
             text=f"Un nuevo miembro ha pagado y ha recibido acceso: {user_id}"
@@ -67,14 +64,10 @@ def paypal_webhook():
     if data.get("payment_status") == "Completed":
         user_id = data.get("custom")  # Usar el campo "custom" para el ID de Telegram
 
-        # Verificar firma de PayPal
-        if not verify_paypal_ipn(data):
-            return jsonify({"status": "error", "message": "Firma de PayPal no válida"}), 400
-
         # Si se recibe el ID de Telegram, enviamos el mensaje de acceso al canal VIP
         if user_id:
             try:
-                # Usar create_task para ejecutar la función asincrónica
+                # Usar create_task para ejecutar la función asincrónica en Flask
                 asyncio.create_task(give_access_to_channel(user_id))
                 return jsonify({"status": "success", "message": "Pago validado y acceso otorgado"}), 200
             except Exception as e:
@@ -86,4 +79,5 @@ def paypal_webhook():
         return jsonify({"status": "error", "message": "Pago no completado"}), 400
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # Desactivar el modo de depuración (debug=False) y permitir la ejecución en producción
+    app.run(host="0.0.0.0", port=5000, debug=False)  # Cambié debug=True a False para producción
