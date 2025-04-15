@@ -1,6 +1,14 @@
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
+from dotenv import load_dotenv
+import os
+
+# Cargar las variables de entorno
+load_dotenv()
+
+# Obtener el token de Telegram desde el archivo .env
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 # Habilitar el registro para ver los errores y el funcionamiento del bot
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -47,11 +55,11 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         await greet(update, context)
     else:
         await update.message.reply_text("Lo siento, no entiendo ese comando. ¿Cómo puedo ayudarte?")
-        
+
 # Función para iniciar el bot
 def main() -> None:
     # Crear la aplicación de Telegram
-    application = Application.builder().token("TU_TOKEN_AQUI").build()
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     # Comandos del bot
     application.add_handler(CommandHandler("start", start))
@@ -61,10 +69,10 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^(hola|hello)$'), greet))
 
     # Responder a la opción de contactar directamente
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^hablar conmigo$'), contact_me))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^hablar conmigo$', flags=filters.Regex.IGNORECASE), contact_me))
 
     # Responder a la opción de pagos
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^opciones de pago$'), payment))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^opciones de pago$', flags=filters.Regex.IGNORECASE), payment))
 
     # Manejar mensajes generales
     application.add_handler(MessageHandler(filters.TEXT & ~filters.Regex('^(hola|hello|opciones de pago|hablar conmigo)$'), handle_message))
