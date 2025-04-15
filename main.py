@@ -89,6 +89,7 @@ async def main():
     await application.run_polling()
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.create_task(main())  # Ejecutar main() asincrónicamente en el bucle de eventos
+    # Evitar DeprecationWarning: No se necesita get_event_loop()
+    loop = asyncio.get_event_loop()  # Obtener un loop de eventos
+    loop.create_task(main())  # Ejecutar la función de Telegram en segundo plano
     app.run(host="0.0.0.0", port=5000, debug=False)
