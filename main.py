@@ -3,8 +3,8 @@ import json
 import hmac
 import hashlib
 import logging
-from telegram import Bot, Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram import Bot
+from telegram.ext import Application
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 import asyncio
@@ -13,9 +13,7 @@ import asyncio
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID")  # ID de tu canal VIP
-PAYPAL_SECRET = os.getenv("PAYPAL_SECRET")  # Clave secreta de PayPal (para validar el webhook)
-PAYPAL_CLIENT_ID = os.getenv("PAYPAL_CLIENT_ID")  # Tu client ID de PayPal (si es necesario en otro proceso)
-PAYPAL_CLIENT_SECRET = os.getenv("PAYPAL_CLIENT_SECRET")  # Tu client secret de PayPal (si es necesario en otro proceso)
+PAYPAL_SECRET = os.getenv("PAYPAL_SECRET")
 
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
@@ -24,12 +22,7 @@ bot = Bot(token=TOKEN)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Función para responder a "hola" en Telegram
-async def start(update: Update, context):
-    user = update.message.from_user
-    await update.message.reply_text(f"Hola {user.first_name}, ¡bienvenido! 👋")
-
-# Validación de IPN de PayPal (para verificar los pagos)
+# Validación de IPN de PayPal
 def verify_paypal_ipn(data):
     """Verifica la IPN de PayPal utilizando el HMAC y la clave secreta"""
     expected_signature = hmac.new(
@@ -57,7 +50,7 @@ async def give_access_to_channel(user_id):
     except Exception as e:
         logger.error(f"Error al dar acceso al canal: {e}")
 
-# Endpoint del Webhook de PayPal
+# Endpoint del Webhook
 @app.route('/webhook/paypal', methods=['POST'])
 def paypal_webhook():
     """Recibe el webhook de PayPal y verifica el pago"""
@@ -85,21 +78,17 @@ def paypal_webhook():
     else:
         return jsonify({"status": "error", "message": "Pago no completado"}), 400
 
-# Configuración de Telegram para responder al comando "hola"
+# Función principal de Telegram
 async def main():
+    """Función principal para el bot de Telegram"""
     application = Application.builder().token(TOKEN).build()
-    
-    # Configurar el manejador de comandos y mensajes
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, start))
-    
-    # Ejecutar la aplicación
+
+    # Aquí puedes agregar handlers de tu bot si es necesario
+
+    # Empezar el polling
     await application.run_polling()
 
 if __name__ == "__main__":
-    # Iniciar servidor Flask
-    from threading import Thread
-    thread = Thread(target=app.run, kwargs={'host': '0.0.0.0', 'port': 5000})
-    thread.start()
-    
-    # Iniciar Telegram
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.create_task(main())  # Ejecutar main() asincrónicamente en el bucle de eventos
+    app.run(host="0.0.0.0", port=5000, debug=False)
