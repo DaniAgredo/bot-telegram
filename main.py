@@ -4,7 +4,7 @@ import hmac
 import hashlib
 import logging
 from telegram import Bot
-from telegram.ext import Application, CommandHandler, MessageHandler, Filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 import asyncio
