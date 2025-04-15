@@ -11,14 +11,17 @@ import asyncio
 
 # Cargar variables de entorno desde el archivo .env
 load_dotenv()
-TOKEN = os.getenv("TELEGRAM_TOKEN")  # Usar el token de Telegram del archivo .env
-CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID")  # ID de tu canal VIP de Telegram
+
+# Usar las variables de entorno para los tokens y claves
+TOKEN = os.getenv("TELEGRAM_TOKEN")  # Token de Telegram
+CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID")  # ID del canal VIP de Telegram
 PAYPAL_SECRET = os.getenv("PAYPAL_SECRET")  # Clave secreta de PayPal
 
+# Configuración de Flask
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
 
-# Configurar logging
+# Configurar el logger para ver la salida de los eventos
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -35,13 +38,14 @@ def verify_paypal_ipn(data):
 
 # Función para agregar al usuario al canal VIP después de pago
 async def give_access_to_channel(user_id):
-    """Agrega al usuario al canal VIP después de pago exitoso"""
+    """Envía mensaje al usuario y agrega acceso al canal VIP"""
     try:
+        # Enviar mensaje de bienvenida al usuario que pagó
         await bot.send_message(
             chat_id=user_id,
             text="🎉 ¡Tu pago fue exitoso! Ahora tienes acceso al canal VIP. ¡Bienvenido! 🔥"
         )
-        # Enviar mensaje al canal de Telegram notificando al admin sobre el nuevo miembro
+        # Enviar notificación al canal de Telegram
         await bot.send_message(
             chat_id=CHANNEL_ID,
             text=f"Un nuevo miembro ha pagado y ha recibido acceso: {user_id}"
@@ -53,7 +57,7 @@ async def give_access_to_channel(user_id):
 # Endpoint para recibir el webhook de PayPal
 @app.route('/webhook/paypal', methods=['POST'])
 def paypal_webhook():
-    """Recibe el webhook de PayPal y verifica el pago"""
+    """Recibe y maneja el webhook de PayPal para verificar pagos"""
     data = request.json
     logger.info(f"Datos recibidos del webhook: {json.dumps(data)}")
 
@@ -67,7 +71,7 @@ def paypal_webhook():
         # Si se recibe el ID de Telegram, enviamos el mensaje de acceso al canal VIP
         if user_id:
             try:
-                # Usar create_task para ejecutar la función asincrónica en Flask
+                # Ejecutar la tarea asincrónica para conceder el acceso al canal VIP
                 asyncio.run(give_access_to_channel(user_id))
                 return jsonify({"status": "success", "message": "Pago validado y acceso otorgado"}), 200
             except Exception as e:
@@ -79,5 +83,5 @@ def paypal_webhook():
         return jsonify({"status": "error", "message": "Pago no completado"}), 400
 
 if __name__ == "__main__":
-    # Corriendo la app Flask
+    # Iniciar el servidor Flask
     app.run(host="0.0.0.0", port=5000, debug=False)
