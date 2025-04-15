@@ -1,39 +1,35 @@
 import logging
-import re
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
-# Configurar logging
+# Configurar logs
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# Comando /start
+# /start
 async def start(update: Update, context: CallbackContext) -> None:
     user = update.effective_user
     await update.message.reply_html(
         rf"Hola {user.mention_html()}, bienvenido al bot. ¿En qué puedo ayudarte?"
     )
 
-# Comando /help
+# /help
 async def help_command(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text("Este es un bot interactivo. Usa las opciones disponibles.")
 
-# Respuesta a "hola" o "hello"
+# saludo
 async def greet(update: Update, context: CallbackContext) -> None:
-    user_message = update.message.text.lower()
-    if "hola" in user_message or "hello" in user_message:
-        await update.message.reply_text("¡Hola! ¿Cómo estás? Estoy aquí para ayudarte.")
+    await update.message.reply_text("¡Hola! ¿Cómo estás? Estoy aquí para ayudarte.")
 
-# Respuesta a la opción de contactar con el creador del bot
+# contactar con el creador
 async def contact_me(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text(
         "¡Hola! Para hablar conmigo directamente, por favor, visita mi perfil de Telegram: @AgredoD"
     )
 
-# Respuesta a las opciones de pago
+# métodos de pago
 async def payment(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text(
         "Aquí tienes los métodos de pago disponibles:\n"
@@ -42,38 +38,30 @@ async def payment(update: Update, context: CallbackContext) -> None:
         "3. Mercado Pago: [Enlace de Mercado Pago]"
     )
 
-# Mensaje general
+# manejar texto libre
 async def handle_message(update: Update, context: CallbackContext) -> None:
     user_message = update.message.text.lower()
-
     if "hola" in user_message or "hello" in user_message:
         await greet(update, context)
     else:
         await update.message.reply_text("Lo siento, no entiendo ese comando. ¿Cómo puedo ayudarte?")
 
-# Función principal para ejecutar el bot
+# función principal
 def main() -> None:
-    import os
-    from dotenv import load_dotenv
+    application = Application.builder().token("TU_TOKEN_AQUI").build()
 
-    load_dotenv()
-    TOKEN = os.getenv("TELEGRAM_TOKEN")
-
-    application = Application.builder().token(TOKEN).build()
-
-    # Comandos
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
 
-    # Respuestas específicas
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^(hola|hello)$'), greet))
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^hablar conmigo$', flags=re.IGNORECASE), contact_me))
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^opciones de pago$', flags=re.IGNORECASE), payment))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^hola$"), greet))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^hello$"), greet))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^hablar conmigo$"), contact_me))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^opciones de pago$"), payment))
 
-    # Mensajes generales
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.Regex('^(hola|hello|opciones de pago|hablar conmigo)$'), handle_message))
+    application.add_handler(
+        MessageHandler(filters.TEXT & ~filters.Regex("(?i)^(hola|hello|hablar conmigo|opciones de pago)$"), handle_message)
+    )
 
-    # Iniciar el bot
     application.run_polling()
 
 if __name__ == "__main__":
