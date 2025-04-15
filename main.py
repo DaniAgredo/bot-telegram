@@ -58,16 +58,16 @@ def main() -> None:
     application.add_handler(CommandHandler("help", help_command))
 
     # Responder a los mensajes que contengan "hola" o "hello"
-    application.add_handler(MessageHandler(filters.TEXT & filters.regex('^(hola|hello)$'), greet))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^(hola|hello)$'), greet))
 
     # Responder a la opción de contactar directamente
-    application.add_handler(MessageHandler(filters.TEXT & filters.regex('^hablar conmigo$'), contact_me))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^hablar conmigo$'), contact_me))
 
     # Responder a la opción de pagos
-    application.add_handler(MessageHandler(filters.TEXT & filters.regex('^opciones de pago$'), payment))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^opciones de pago$'), payment))
 
     # Manejar mensajes generales
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.regex('^(hola|hello|opciones de pago|hablar conmigo)$'), handle_message))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.Regex('^(hola|hello|opciones de pago|hablar conmigo)$'), handle_message))
 
     # Iniciar el bot
     application.run_polling()
