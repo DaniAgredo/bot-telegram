@@ -78,5 +78,17 @@ def paypal_webhook():
     else:
         return jsonify({"status": "error", "message": "Pago no completado"}), 400
 
+# Función principal de Telegram
+async def main():
+    """Función principal para el bot de Telegram"""
+    application = Application.builder().token(TOKEN).build()
+
+    # Aquí puedes agregar handlers de tu bot si es necesario
+
+    # Empezar el polling
+    await application.run_polling()
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # Empezar el polling en el hilo principal sin interferir con el servidor Flask
+    asyncio.create_task(main())
+    app.run(host="0.0.0.0", port=5000, debug=False)
