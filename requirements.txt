@@ -5,3 +5,4 @@ Flask
 requests
 uvicorn
 fastapi
+gunicorn==20.1.0
