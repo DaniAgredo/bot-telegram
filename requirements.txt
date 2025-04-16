@@ -1,8 +1,6 @@
+flask
 python-telegram-bot==22.0
 paypalrestsdk==1.13.3
 python-dotenv
-Flask
-requests
-uvicorn
-fastapi
 gunicorn==20.1.0
+requests
