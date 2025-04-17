@@ -1,101 +1,83 @@
 import os
 import logging
-from flask import Flask, request
-import paypalrestsdk
-import telegram
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from flask import Flask, request
 from dotenv import load_dotenv
-from gunicorn.app.base import BaseApplication
+import paypalrestsdk
 
-# Cargar variables de entorno desde .env
+# Cargar variables
 load_dotenv()
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+PAYPAL_CLIENT_ID = os.getenv('PAYPAL_CLIENT_ID')
+PAYPAL_CLIENT_SECRET = os.getenv('PAYPAL_CLIENT_SECRET')
+PAYPAL_WEBHOOK_ID = os.getenv('PAYPAL_WEBHOOK_ID')
 
-# Configurar PayPal
+# Inicializar PayPal SDK
 paypalrestsdk.configure({
-    'mode': 'live',  # Cambia a 'sandbox' si estás probando
-    'client_id': os.getenv('PAYPAL_CLIENT_ID'),
-    'client_secret': os.getenv('PAYPAL_CLIENT_SECRET')
+    'mode': 'live',
+    'client_id': PAYPAL_CLIENT_ID,
+    'client_secret': PAYPAL_CLIENT_SECRET
 })
 
-# Inicializar bot de Telegram
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-bot = telegram.Bot(token=TELEGRAM_TOKEN)
+# Logging
+logging.basicConfig(level=logging.INFO)
 
-# Configuración del bot para responder a comandos
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text('¡Hola! Soy tu bot de Telegram.')
-
-def help_command(update: Update, context: CallbackContext):
-    update.message.reply_text('Este es el comando de ayuda.')
-
-def handle_message(update: Update, context: CallbackContext):
-    text = update.message.text.lower()
-    if 'hola' in text:
-        update.message.reply_text("¡Hola! ¿En qué puedo ayudarte hoy?")
-
-# Crear aplicación Flask
+# Flask app
 app = Flask(__name__)
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    if request.method == "POST":
-        payload = request.get_data(as_text=True)
-        signature = request.headers.get('Paypal-Transmission-Sig')
-        webhook_id = os.getenv('PAYPAL_WEBHOOK_ID')
+@app.route('/webhook/paypal', methods=['POST'])
+def paypal_webhook():
+    payload = request.get_data(as_text=True)
+    signature = request.headers.get('Paypal-Transmission-Sig')
 
-        verify = paypalrestsdk.notifications.webhook_event.verify(
-            transmission_sig=signature,
-            transmission_id=request.headers.get('Paypal-Transmission-Id'),
-            transmission_time=request.headers.get('Paypal-Transmission-Time'),
-            cert_url=request.headers.get('Paypal-Cert-Url'),
-            auth_algo=request.headers.get('Paypal-Auth-Algo'),
-            webhook_id=webhook_id,
-            event_body=payload
-        )
+    if not signature:
+        return "No Signature", 400
 
-        if verify:
-            event = paypalrestsdk.notifications.WebhookEvent.from_json(payload)
-            print(f"✅ Evento recibido: {event.event_type}")
-            # Aquí puedes manejar eventos de pago, etc.
-        else:
-            print("❌ El evento no es válido.")
-        return '', 200
+    verify = paypalrestsdk.notifications.webhook_event.verify(
+        signature, payload, PAYPAL_WEBHOOK_ID
+    )
 
-# Configurar bot de Telegram
-updater = Updater(token=TELEGRAM_TOKEN, use_context=True)
-dispatcher = updater.dispatcher
+    if verify:
+        event = paypalrestsdk.notifications.WebhookEvent.from_json(payload)
+        print("✅ Evento válido recibido de PayPal:", event)
+    else:
+        print("❌ Evento inválido.")
+    return '', 200
 
-dispatcher.add_handler(CommandHandler('start', start))
-dispatcher.add_handler(CommandHandler('help', help_command))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+# Bot Handlers
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text('¡Hola! Soy tu bot de Telegram.')
 
-# Clase para ejecutar Flask con Gunicorn
-class FlaskApplication(BaseApplication):
-    def __init__(self, app, options=None):
-        self.options = options or {}
-        self.app = app
-        super().__init__()
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text('Este es el comando de ayuda.')
 
-    def load(self):
-        return self.app
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if 'hola' in update.message.text.lower():
+        await update.message.reply_text("¡Hola! ¿En qué puedo ayudarte hoy?")
 
-    def load_config(self):
-        config = {
-            "bind": f"0.0.0.0:{os.getenv('PORT', '5000')}",
-            "workers": 1,
-            "accesslog": "-",
-            "errorlog": "-"
-        }
-        for key, value in self.options.items():
-            config[key] = value
-        self.cfg.set_config(config)
+# Iniciar bot
+async def init_bot():
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-# Ejecutar el bot y el servidor
-if __name__ == "__main__":
-    # Iniciar bot de Telegram
-    updater.start_polling()
-    print("✅ Bot de Telegram iniciado correctamente")
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    # Iniciar servidor Flask con Gunicorn
-    FlaskApplication(app).run()
+    webhook_url = os.getenv("WEBHOOK_URL") + "/webhook/telegram"
+    await application.bot.set_webhook(webhook_url)
+
+    print(f"🚀 Webhook de Telegram configurado en: {webhook_url}")
+
+    return application
+
+@app.route('/webhook/telegram', methods=['POST'])
+async def telegram_webhook():
+    update = Update.de_json(request.get_json(force=True), bot_app.bot)
+    await bot_app.process_update(update)
+    return "ok"
+
+if __name__ == '__main__':
+    import asyncio
+    bot_app = asyncio.run(init_bot())  # inicia el bot y configura webhook
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
