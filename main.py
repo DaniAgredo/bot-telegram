@@ -1,83 +1,90 @@
 import os
-import logging
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-from flask import Flask, request
+import asyncio
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler
 from dotenv import load_dotenv
-import paypalrestsdk
 
-# Cargar variables
+# Cargar .env
 load_dotenv()
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-PAYPAL_CLIENT_ID = os.getenv('PAYPAL_CLIENT_ID')
-PAYPAL_CLIENT_SECRET = os.getenv('PAYPAL_CLIENT_SECRET')
-PAYPAL_WEBHOOK_ID = os.getenv('PAYPAL_WEBHOOK_ID')
+TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-# Inicializar PayPal SDK
-paypalrestsdk.configure({
-    'mode': 'live',
-    'client_id': PAYPAL_CLIENT_ID,
-    'client_secret': PAYPAL_CLIENT_SECRET
-})
+# Estados
+SELECTING_OPTION, SELECTING_PAYMENT_METHOD = range(2)
 
-# Logging
-logging.basicConfig(level=logging.INFO)
+# Bienvenida si escriben "hola"
+async def welcome_message(update: Update, context: CallbackContext) -> int:
+    text = update.message.text.lower()
+    if "hola" in text or "buenas" in text or "/start" in text:
+        await update.message.reply_text(
+            "👋 *¡Bienvenido al canal exclusivo!* Soy tu asistente personal.\n\n"
+            "¿Qué deseas hacer?\n\n"
+            "1️⃣ *Hablar conmigo directamente*\n"
+            "2️⃣ *Unirte al canal VIP por solo $9.99* 🔥\n\n"
+            "Escribe `1` o `2` para continuar.",
+            parse_mode="Markdown"
+        )
+        return SELECTING_OPTION
+    else:
+        await update.message.reply_text("¿Cómo puedo ayudarte? Escribe 'hola' para ver las opciones.")
+        return SELECTING_OPTION
 
-# Flask app
-app = Flask(__name__)
+# Elegir entre hablar o pagar
+async def option_selected(update: Update, context: CallbackContext) -> int:
+    choice = update.message.text.strip()
 
-@app.route('/webhook/paypal', methods=['POST'])
-def paypal_webhook():
-    payload = request.get_data(as_text=True)
-    signature = request.headers.get('Paypal-Transmission-Sig')
+    # Si elige la opción 1 (hablar)
+    if choice == "1":
+        await update.message.reply_text("✨ Estoy aquí para ti. ¿Qué quieres saber o decirme?")
+        return SELECTING_OPTION
 
-    if not signature:
-        return "No Signature", 400
+    # Si elige la opción 2 (pagar)
+    elif choice == "2":
+        keyboard = [
+            [InlineKeyboardButton("💸 Pagar con PayPal", url="https://paypal.me/dannielcampo?country.x=CO&locale.x=es_XC")],
+            [InlineKeyboardButton("💸 Pagar con Skrill", url="https://skrill.me/rq/Daniel/9.99/USD?key=4kThKylj3LQbd3ROKmJnfvC2hVs")],
+            [InlineKeyboardButton("💸 Pagar con Mercado Pago", url="https://mpago.li/2Qg3F6v")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            "💳 Elige tu método de pago para acceder al canal VIP:",
+            reply_markup=reply_markup
+        )
+        await update.message.reply_text(
+            "✅ Cuando termines tu pago, espera unos segundos.\n"
+            "Te daremos acceso automáticamente si todo está bien registrado.\n"
+            "Escribe 'hola' si quieres volver al menú."
+        )
+        await asyncio.sleep(10)
+        await update.message.reply_text("¿Deseas hacer algo más? Escribe 'hola' para ver el menú nuevamente.")
+        return ConversationHandler.END
 
-    verify = paypalrestsdk.notifications.webhook_event.verify(
-        signature, payload, PAYPAL_WEBHOOK_ID
+    # Si no se elige 1 ni 2, pedimos que ingrese una opción válida
+    else:
+        await update.message.reply_text("Por favor escribe 1 o 2.")
+        return SELECTING_OPTION
+
+# Cancelar
+async def cancel(update: Update, context: CallbackContext) -> int:
+    await update.message.reply_text("❌ Conversación cancelada. ¡Nos vemos pronto!")
+    return ConversationHandler.END
+
+# Función principal
+def main():
+    application = Application.builder().token(TOKEN).build()
+
+    conv_handler = ConversationHandler(
+        entry_points=[
+            CommandHandler("start", welcome_message),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, welcome_message)
+        ],
+        states={
+            SELECTING_OPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, option_selected)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
     )
 
-    if verify:
-        event = paypalrestsdk.notifications.WebhookEvent.from_json(payload)
-        print("✅ Evento válido recibido de PayPal:", event)
-    else:
-        print("❌ Evento inválido.")
-    return '', 200
+    application.add_handler(conv_handler)
+    application.run_polling()
 
-# Bot Handlers
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text('¡Hola! Soy tu bot de Telegram.')
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text('Este es el comando de ayuda.')
-
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if 'hola' in update.message.text.lower():
-        await update.message.reply_text("¡Hola! ¿En qué puedo ayudarte hoy?")
-
-# Iniciar bot
-async def init_bot():
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-
-    webhook_url = os.getenv("WEBHOOK_URL") + "/webhook/telegram"
-    await application.bot.set_webhook(webhook_url)
-
-    print(f"🚀 Webhook de Telegram configurado en: {webhook_url}")
-
-    return application
-
-@app.route('/webhook/telegram', methods=['POST'])
-async def telegram_webhook():
-    update = Update.de_json(request.get_json(force=True), bot_app.bot)
-    await bot_app.process_update(update)
-    return "ok"
-
-if __name__ == '__main__':
-    import asyncio
-    bot_app = asyncio.run(init_bot())  # inicia el bot y configura webhook
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+if __name__ == "__main__":
+    main()
